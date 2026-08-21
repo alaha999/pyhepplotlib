@@ -79,9 +79,10 @@ def case_05_publication():
     plt.hist(signal, label="Signal x 10", color=ROOT.kRed, scale=10)
     plt.hist(data, label="Data", color=ROOT.kBlack, isData=True)
     plt.xaxis("Observable [GeV]", (0, 400))
-    plt.yaxis("Events", (0.1, 2e3))
+    plt.yaxis("Events", (0.1, 2e4))
     plt.ratio_axis("Data / Pred.", (0.5, 1.5))
     plt.legend(pos=[0.64, 0.50, 0.94, 0.84])
+    plt.caption("e#mu SR")
     plt.draw(logY=True, showStat=False)
     save("05_publication.png")
 
