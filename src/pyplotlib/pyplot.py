@@ -53,12 +53,12 @@ def style(experiment="CMS", lumi=0, year=0, energy="13 TeV", extraText="Internal
 def figure(canvName="can", w=800, h=600):
     global _plot
 
+    if _plot is not None: _plot.close()
+
     _plot = Plotter()
     _apply_style(_plot)
     _plot.figure(canvName, w, h)
-
-    return _plot.canvas
-
+    return _plot
 
 def hist(histo, **kwargs):
     _get_plot().hist(histo, **kwargs)
@@ -90,6 +90,13 @@ def draw(**kwargs):
 def savefig(filename):
     _get_plot().savefig(filename)
 
+def printTable(data=None):
+    return _get_plot().printTable(data=data)
 
 def current():
     return _get_plot()
+
+def close():
+    global _plot
+    if _plot is not None: _plot.close()
+    _plot = None

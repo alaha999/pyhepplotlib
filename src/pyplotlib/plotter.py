@@ -58,6 +58,8 @@ class Plotter:
         self.yerr_ratio = None
         self.mainleg = None
         self.ratioleg = None
+        # Statistics corresponding to the most recent successful Draw().
+        self._last_draw_summary = None
 
     # Original configuration API kept for compatibility.
     def setPubStyle(self, pubStyle): self.pubStyle = pubStyle
@@ -100,7 +102,9 @@ class Plotter:
         ROOT.gStyle.SetOptStat(0)
         ratio_size = 0.30
         self.mainPad = ROOT.TPad(unique_name("mpad"), "mainpad", 0, ratio_size, 1, 1)
+        ROOT.SetOwnership(self.mainPad, False)
         self.ratioPad = ROOT.TPad(unique_name("rpad"), "ratiopad", 0, 0, 1, ratio_size)
+        ROOT.SetOwnership(self.ratioPad, False)
         pad_style(self.mainPad, self.ratioPad, self.pubStyle)
 
         self.histogram = []
@@ -215,38 +219,41 @@ class Plotter:
             h.SetBinError(i, 0)
         return h
 
-    def printInfo(self, stack_histo, signal_histo, data_histo):
+    def _yield_and_error(self, hist):
+        if hist is None: return None
+        yld = sum(hist.GetBinContent(i) for i in range(1, hist.GetNbinsX() + 1))
+        err = sum(hist.GetBinError(i)**2 for i in range(1, hist.GetNbinsX() + 1))**0.5
+        return yld, err
+    
+    def printTable(self, data=None):
         from tabulate import tabulate
 
-        if not (stack_histo or signal_histo or data_histo):
-            return
-        nbins = (stack_histo or signal_histo or data_histo)[0].GetNbinsX()
-        headers = ["BinNo", "range"]
-        all_hists = stack_histo + signal_histo + data_histo
-        headers += [h.GetName() for h in all_hists]
-        if self.h_data is not None and self.h_totbkg is not None:
-            headers.append("obs/exp")
+        if self._last_draw_summary is None: raise RuntimeError("Call Draw() before printTable().")
 
-        rows = []
-        for ibin in range(1, nbins + 1):
-            ref = all_hists[0]
-            row = [
-                f"Bin{ibin}",
-                f"{ref.GetBinLowEdge(ibin):.1f},{ref.GetBinLowEdge(ibin) + ref.GetBinWidth(ibin):.1f}",
-            ]
-            row += [f"{h.GetBinContent(ibin):.1f}±{h.GetBinError(ibin):.1f}" for h in all_hists]
-            if self.h_data is not None and self.h_totbkg is not None:
-                exp = self.h_totbkg.GetBinContent(ibin)
-                row.append(f"{self.h_data.GetBinContent(ibin) / exp:.2f}" if exp else "-1")
-            rows.append(row)
+        s, rows = self._last_draw_summary, []
 
-        print(tabulate(rows, headers=headers, tablefmt="github"))
-        if self.h_totbkg is not None:
-            print(f"\ntotbkg = {self.h_totbkg.Integral():.2f}")
-        if self.h_data is not None:
-            print(f"  data = {self.h_data.Integral():.2f}")
-        if self.h_data is not None and self.h_totbkg is not None and self.h_totbkg.Integral():
-            print(f"obs/exp= {self.h_data.Integral() / self.h_totbkg.Integral():.3f}\n")
+        for label, yld, err in s["backgrounds"] + s["signals"]:
+            rows.append([label, f"{yld:.2f} ± {err:.2f}"])
+
+        bkg_yld = None
+        if s["total_background"] is not None:
+            bkg_yld, err = s["total_background"]
+            rows.append(["Total bkg", f"{bkg_yld:.2f} ± {err:.2f}"])
+
+        show_data = data is not False
+        data_yld = None
+
+        if data is True and s["data"] is None: print("Warning: data=True requested, but no data histogram was drawn.")
+
+        if show_data and s["data"] is not None:
+            data_yld, err = s["data"]
+            rows.append(["Data", f"{data_yld:.2f} ± {err:.2f}"])
+
+        if show_data and data_yld is not None and bkg_yld is not None:
+            rows.append(["Obs/Exp", f"{data_yld / bkg_yld:.3f}" if bkg_yld else "—"])
+
+        if not rows: return print("No histograms are available for the yield table.")
+        print(tabulate(rows, headers=["Process", "Yield"], tablefmt="github"))
 
     def Draw(
         self,
@@ -267,9 +274,11 @@ class Plotter:
         if self.canvas is None:
             self.figure()
 
-        self._reset_draw_state()
+
         self.mainPad.Clear()
         self.ratioPad.Clear()
+        self._reset_draw_state()
+        
         self.mainPad.SetLogy(bool(logY))
         self.mainPad.SetLogx(bool(logX))
         self.ratioPad.SetLogx(bool(logX))
@@ -303,6 +312,14 @@ class Plotter:
             for item in data[1:]:
                 self.h_data.Add(item[3])
 
+        #summary text to build the table        
+        self._last_draw_summary = {
+            "backgrounds": [(label, *self._yield_and_error(hist)) for label, _, _, hist, _ in backgrounds],
+            "signals": [(label, *self._yield_and_error(hist)) for label, _, _, hist, _ in signals],
+            "total_background": self._yield_and_error(self.h_totbkg),
+            "data": self._yield_and_error(self.h_data),
+        }
+                
         self._make_legend()
         stack_legend = sorted(backgrounds, key=lambda item: item[3].Integral(), reverse=True) if sortLegend else backgrounds
         signal_legend = sorted(signals, key=lambda item: item[3].Integral(), reverse=True) if sortLegend else signals
@@ -360,11 +377,8 @@ class Plotter:
             self.h_data.SetBinErrorOption(ROOT.TH1.EBinErrorOpt.kPoisson)
             self.h_data.GetXaxis().SetRangeUser(*self.xrange)
             self.h_data.GetYaxis().SetRangeUser(*self.yrange)
-            self.h_data.Draw("E1X0 SAME")
-
-        if self.print_info:
-            self.printInfo([x[3] for x in backgrounds], [x[3] for x in signals], [x[3] for x in data])
-
+            self.h_data.Draw("E1X0 SAME")            
+            
         self.mainleg.Draw()
         if not self.pubStyle:
             self.ratioleg.Draw()
@@ -456,9 +470,19 @@ class Plotter:
             text.DrawLatex(left, y - (i + 2) * 0.05, caption)
             self._draw_objects.append(text)
 
-    return self.canvas
+        return self.canvas
             
     def savefig(self, filename):
         if self.canvas is None:
             raise RuntimeError("No canvas exists. Call figure() and Draw() first.")
         self.canvas.Print(str(filename))
+
+
+    def close(self):
+        if self.canvas: self.canvas.Close()
+        
+        self.mainPad = None
+        self.ratioPad = None
+        self.canvas = None
+        self.histogram = []
+        self._reset_draw_state()
