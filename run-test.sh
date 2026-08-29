@@ -23,6 +23,11 @@ echo
 echo "[INFO] Running core tests..."
 python3 -m pytest -vv -s tests/test_core.py
 
+# printTable test
+echo
+echo "[INFO] Running print table test..."
+python3 tests/test_print_table.py
+
 # Visual gallery tests
 echo
 echo "[INFO] Generating plot gallery..."
@@ -42,6 +47,7 @@ fi
 
 echo "[OK] Generated $nplots plot(s):"
 find tests/outputs -maxdepth 1 -name "*.png" -printf "  %f\n" | sort
+
 
 echo
 echo "============================================================"
