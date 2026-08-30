@@ -40,51 +40,49 @@ def root_value(value):
         raise ValueError(f"Unknown ROOT value: {value}")
     return getattr(ROOT, base) + sign * offset
 
-
 def merge_underflow_overflow_in_range(h, xmin=None, xmax=None):
     axis = h.GetXaxis()
     nbins = h.GetNbinsX()
 
     first_bin = 1
-    if xmin is not None:
-        for b in range(1, nbins + 1):
-            if axis.GetBinUpEdge(b) > xmin:
-                first_bin = b
-                break
-
     last_bin = nbins
+
+    if xmin is not None:
+        first_bin = max(1, axis.FindBin(xmin))
+
     if xmax is not None:
-        last_bin = 0
-        for b in range(1, nbins + 1):
-            if axis.GetBinUpEdge(b) <= xmax:
-                last_bin = b
-        if last_bin == 0:
-            last_bin = 1
+        last_bin = min(nbins, axis.FindBin(xmax - 1e-9))
 
-    first_bin = max(1, first_bin)
-    last_bin = min(nbins, last_bin)
+    if first_bin > last_bin: raise ValueError("Invalid visible x-range.")
 
-    if first_bin > 1:
-        content = h.GetBinContent(first_bin)
-        error2 = h.GetBinError(first_bin) ** 2
-        for b in range(0, first_bin):
-            content += h.GetBinContent(b)
-            error2 += h.GetBinError(b) ** 2
-            h.SetBinContent(b, 0.0)
-            h.SetBinError(b, 0.0)
+    if first_bin == last_bin:
+        content = sum(h.GetBinContent(i) for i in range(0, nbins + 2))
+        error = sum(h.GetBinError(i)**2 for i in range(0, nbins + 2))**0.5
+
+        h.Reset()
         h.SetBinContent(first_bin, content)
-        h.SetBinError(first_bin, math.sqrt(error2))
+        h.SetBinError(first_bin, error)
+        return
+    
+    low_content = sum(h.GetBinContent(i) for i in range(0, first_bin + 1))
+    low_error = sum(h.GetBinError(i)**2 for i in range(0, first_bin + 1))**0.5
 
-    if last_bin < nbins:
-        content = h.GetBinContent(last_bin)
-        error2 = h.GetBinError(last_bin) ** 2
-        for b in range(last_bin + 1, nbins + 2):
-            content += h.GetBinContent(b)
-            error2 += h.GetBinError(b) ** 2
-            h.SetBinContent(b, 0.0)
-            h.SetBinError(b, 0.0)
-        h.SetBinContent(last_bin, content)
-        h.SetBinError(last_bin, math.sqrt(error2))
+    high_content = sum(h.GetBinContent(i) for i in range(last_bin, nbins + 2))
+    high_error = sum(h.GetBinError(i)**2 for i in range(last_bin, nbins + 2))**0.5
+
+    for i in range(0, first_bin):
+        h.SetBinContent(i, 0)
+        h.SetBinError(i, 0)
+
+    for i in range(last_bin + 1, nbins + 2):
+        h.SetBinContent(i, 0)
+        h.SetBinError(i, 0)
+
+    h.SetBinContent(first_bin, low_content)
+    h.SetBinError(first_bin, low_error)
+
+    h.SetBinContent(last_bin, high_content)
+    h.SetBinError(last_bin, high_error)
 
 
 def truncate_histogram(h_orig, xmin, xmax, new_name=None):
