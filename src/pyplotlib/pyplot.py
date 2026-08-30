@@ -8,8 +8,8 @@ _plot = None
 
 _style = {
     "experiment": "CMS",
-    "lumi": 0,
-    "year": 0,
+    "lumi": 140,
+    "year": "Run2",
     "energy": "13 TeV",
     "extraText": "Internal",
     "pubStyle": False,
@@ -92,6 +92,9 @@ def savefig(filename):
 
 def printTable(data=None):
     return _get_plot().printTable(data=data)
+
+def pieChart(**kwargs):
+    return _get_plot().pieChart(**kwargs)
 
 def current():
     return _get_plot()
