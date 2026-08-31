@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: ghcr.io/root-project/root:6.34.04-ubuntu24.04
+      image: rootproject/root:latest
 
     steps:
       - name: Checkout repository
