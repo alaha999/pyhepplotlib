@@ -15,19 +15,19 @@ jobs:
     runs-on: ubuntu-latest
 
     container:
-      image: ghcr.io/root-project/root:latest
+      image: ghcr.io/root-project/root:6.34.04-ubuntu24.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Python dependencies
+      - name: Install package
         run: |
           python3 -m pip install --upgrade pip
           python3 -m pip install -e .
           python3 -m pip install pytest tabulate
 
-      - name: Run test suite
+      - name: Run tests
         run: |
           chmod +x run-test.sh
           ./run-test.sh
