@@ -232,7 +232,7 @@ class Plotter:
 
         s, rows = self._last_draw_summary, []
 
-        for label, yld, err in s["backgrounds"] + s["signals"]:
+        for label, yld, err, _ in s["backgrounds"] + s["signals"]:
             rows.append([label, f"{yld:.2f} ± {err:.2f}"])
 
         bkg_yld = None
@@ -314,8 +314,8 @@ class Plotter:
 
         #summary text to build the table        
         self._last_draw_summary = {
-            "backgrounds": [(label, *self._yield_and_error(hist)) for label, _, _, hist, _ in backgrounds],
-            "signals": [(label, *self._yield_and_error(hist)) for label, _, _, hist, _ in signals],
+            "backgrounds": [(label, *self._yield_and_error(hist), hist.GetFillColor()) for label, _, _, hist, _ in backgrounds],
+            "signals": [(label, *self._yield_and_error(hist),hist.GetFillColor()) for label, _, _, hist, _ in signals],
             "total_background": self._yield_and_error(self.h_totbkg),
             "data": self._yield_and_error(self.h_data),
         }
@@ -436,17 +436,19 @@ class Plotter:
         self.canvas.Draw()
         return self.canvas
 
-    def _draw_experiment_label(self, extraTextOffset):
+    def _draw_experiment_label(self, extraTextOffset=0.18,pad=None):
+        pad = pad or self.mainPad
+        
         if self.experiment == "CMS":
             exp, extra, lumi = cms_labels()
             y = 0.925
-            left = round(self.mainPad.GetLeftMargin(), 2)
-            right = round(self.mainPad.GetRightMargin(), 2)
+            left = round(pad.GetLeftMargin(), 2)
+            right = round(pad.GetRightMargin(), 2)
         elif self.experiment == "ATLAS":
             exp, extra, lumi = atlas_labels()
             y = 0.825
-            left = round(self.mainPad.GetLeftMargin(), 2) + 0.03
-            right = round(self.mainPad.GetRightMargin(), 2)
+            left = round(pad.GetLeftMargin(), 2) + 0.03
+            right = round(pad.GetRightMargin(), 2)
         else:
             return
 
@@ -471,6 +473,48 @@ class Plotter:
             self._draw_objects.append(text)
 
         return self.canvas
+
+    def pieChart(self,
+                 savefig=None,
+                 title="",
+                 labelSize=0.035,
+                 radius=0.25,
+                 angle=0,
+                 w=600,
+                 h=600,
+                 extraTextOffset=0.18,
+                 option=""):
+        if self._last_draw_summary is None: raise RuntimeError("Call Draw() before pieChart().")
+
+        bkgs = [x for x in self._last_draw_summary["backgrounds"] if x[1] > 0]
+        if not bkgs: raise RuntimeError("No positive background yields available for pieChart().")
+
+        values = array("d", [x[1] for x in bkgs])
+
+        canvas = ROOT.TCanvas(unique_name("pie_canvas"), title, w, h)
+        canvas.SetLeftMargin(self.mainPad.GetLeftMargin())
+        canvas.SetRightMargin(self.mainPad.GetRightMargin())
+        canvas.SetTopMargin(self.mainPad.GetTopMargin())
+        canvas.SetBottomMargin(self.mainPad.GetBottomMargin())
+        
+        pie = ROOT.TPie(unique_name("pie"), title, len(values), values)
+        pie.SetLabelFormat("%txt (%perc)")
+        pie.SetRadius(radius)
+        pie.SetAngularOffset(angle)
+
+        pie.SetTextSize(labelSize)
+
+        for i, (label, _, _, color) in enumerate(bkgs):
+            pie.GetSlice(i).SetTitle(label)
+            pie.GetSlice(i).SetFillColor(color)
+
+        pie.Draw(option)
+        self._draw_experiment_label(extraTextOffset,pad=canvas)
+        canvas.Update()
+
+        if savefig: canvas.SaveAs(savefig)
+
+        return canvas
             
     def savefig(self, filename):
         if self.canvas is None:

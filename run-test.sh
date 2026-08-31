@@ -28,6 +28,11 @@ echo
 echo "[INFO] Running print table test..."
 python3 tests/test_print_table.py
 
+# pieChart test
+echo
+echo "[INFO] Running pieChart test..."
+python3 tests/test_pie_chart.py
+
 # Visual gallery tests
 echo
 echo "[INFO] Generating plot gallery..."
@@ -54,8 +59,3 @@ echo "============================================================"
 echo " All tests completed successfully"
 echo "============================================================"
 echo
-echo "Visual gallery:"
-echo "  tests/README.md"
-echo
-echo "Generated images:"
-echo "  tests/outputs/"
