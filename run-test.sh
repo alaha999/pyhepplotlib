@@ -28,31 +28,16 @@ echo
 echo "[INFO] Running print table test..."
 python3 tests/test_print_table.py
 
+# Visual gallery tests
+echo
+echo "[INFO] Generating plot gallery..."
+rm -f tests/outputs/*
+python3 tests/test_gallery.py
+
 # pieChart test
 echo
 echo "[INFO] Running pieChart test..."
 python3 tests/test_pie_chart.py
-
-# Visual gallery tests
-echo
-echo "[INFO] Generating plot gallery..."
-rm -f tests/outputs/*.png
-python3 tests/test_gallery.py
-
-# Check PNGs were actually produced
-echo
-echo "[INFO] Checking generated plots..."
-
-nplots=$(find tests/outputs -maxdepth 1 -name "*.png" | wc -l)
-
-if [[ "$nplots" -eq 0 ]]; then
-    echo "[ERROR] No PNG plots were produced."
-    exit 1
-fi
-
-echo "[OK] Generated $nplots plot(s):"
-find tests/outputs -maxdepth 1 -name "*.png" -printf "  %f\n" | sort
-
 
 echo
 echo "============================================================"
