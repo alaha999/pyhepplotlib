@@ -63,6 +63,8 @@ def figure(canvName="can", w=800, h=600):
 def hist(histo, **kwargs):
     _get_plot().hist(histo, **kwargs)
 
+def hist2d(histo, **kwargs):
+    return _get_plot().hist2d(histo, **kwargs)
 
 def xaxis(label="X-axis", xrange=()):
     _get_plot().set_xaxis(label, xrange)
@@ -72,6 +74,10 @@ def yaxis(label="Events", yrange=(0.01, 1E8)):
     _get_plot().set_yaxis(label, yrange)
 
 
+def zaxis(label="Events", zrange=None):
+    _get_plot().set_zaxis(label, zrange)    
+
+    
 def ratio_axis(label="obs/exp", yrange=(0, 2)):
     _get_plot().set_yaxis_ratio(label, yrange)
 
@@ -85,7 +91,10 @@ def caption(text):
 
 
 def draw(**kwargs):
-    return _get_plot().Draw(**kwargs)
+    plot = _get_plot()
+    if plot.histogram2d is not None:
+        return plot.Draw2D(**kwargs)
+    return plot.Draw(**kwargs)
 
 def savefig(filename):
     _get_plot().savefig(filename)

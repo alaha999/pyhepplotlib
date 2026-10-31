@@ -1,6 +1,7 @@
 import os
 import ROOT
 ROOT.gROOT.SetBatch(True)
+ROOT.gErrorIgnoreLevel = ROOT.kWarning
 
 import pyplotlib.pyplot as plt
 from dummy_data import make_histograms

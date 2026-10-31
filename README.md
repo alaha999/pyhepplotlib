@@ -138,12 +138,94 @@ The following examples demonstrate the plotting functionality, from minimal hist
 </table>
 
 ---
+## 2D Histogram Plotting
+
+PyHEPPlotLib supports ROOT `TH2` histograms with uniform or variable-width rebinning, underflow/overflow folding, and CMS/ATLAS styling.
+
+### Minimal Example
+
+```python
+import pyplotlib.pyplot as plt
+plt.figure()
+plt.hist2d(h2d)
+plt.xaxis("X [GeV]")
+plt.yaxis("Y")
+plt.zaxis("Events")
+plt.draw(logZ=True)
+plt.savefig("hist2d.pdf")
+```
+
+### Advanced Example
+
+```python
+import pyplotlib.pyplot as plt
+plt.style(experiment="ATLAS",lumi=140,energy="13 TeV",extraText="Internal")
+plt.figure(w=800, h=750)
+plt.hist2d(
+    [h_qcd, h_top],
+    rebinx=[0, 50, 100, 200, 400],
+    rebiny=2,
+    cmap="viridis",
+    fold=True,
+)
+
+plt.xaxis("X [GeV]", (0, 400))
+plt.yaxis("Y", (-4, 4))
+plt.zaxis("Events")
+plt.caption("Simulation")
+plt.draw(logZ=True)
+plt.savefig("hist2d_rebinned.pdf")
+```
+
+The `hist2d()` function accepts existing ROOT `TH2` histograms. Multiple histograms can be combined using a list, and rebinning is performed on private histogram copies.
+
+**Key options:**
+
+| Parameter | Default | Description |
+|---|---|---|
+| `rebinx` | `1` | Integer rebin factor or custom X-bin edges |
+| `rebiny` | `1` | Integer rebin factor or custom Y-bin edges |
+| `cmap` | `"viridis"` | ROOT color palette |
+| `fold` | `True` | Fold underflow/overflow into boundary bins |
+| `scale` | `1.0` | Scale histogram contents |
+| `logZ` | `False` | Enable logarithmic Z-axis via `plt.draw()` |
+
+### 2D Plot Gallery
+
+<table>
+  <tr>
+    <td width="50%" align="center" valign="top">
+      <a href="tests/outputs/2d_01_minimal.png">
+        <img
+          src="tests/outputs/2d_01_minimal.png"
+          width="100%"
+          alt="Minimal 2D Histogram">
+      </a>
+      <br>
+      <b>01 — Minimal 2D Histogram</b>
+      <br>
+      <sub>Default binning, overflow folding, and color palette.</sub>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <a href="tests/outputs/2d_03_variable_rebin.png">
+        <img
+          src="tests/outputs/2d_03_variable_rebin.png"
+          width="100%"
+          alt="Variable-width 2D Histogram">
+      </a>
+      <br>
+      <b>02 — Variable-width 2D Histogram</b>
+      <br>
+      <sub>Custom X/Y bin edges, logarithmic Z-axis, and ATLAS styling.</sub>
+    </td>
+  </tr>
+</table>
 
 
 ***ToDo***
 
 This is rough to-do list for me in my free time:
-- [ ] 2D histogram     
+- [x] 2D histogram     
 - [ ] TEfficiency plots     
 - [ ] TGraph for limit plots (Yeah, I am sad, I want to make p-value discovery plots. Should I include it first? xD)
 - [ ] yaml config based plotting wrapper for extensive analysis level collaboration and plotting     

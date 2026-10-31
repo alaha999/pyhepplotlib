@@ -39,6 +39,12 @@ echo
 echo "[INFO] Running pieChart test..."
 python3 tests/test_pie_chart.py
 
+#2D histogram test
+echo
+echo "[INFO] Running 2D hist test..."
+python3 tests/test_2dhist.py
+
+
 echo
 echo "============================================================"
 echo " All tests completed successfully"
