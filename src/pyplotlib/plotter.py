@@ -1,7 +1,8 @@
 import ROOT
+import math
 from array import array
 
-from .styles import atlas_labels, cms_labels, legend_style, pad_style, ratio_style, stack_style
+from .styles import atlas_labels, cms_labels, legend_style, pad_style, ratio_style, stack_style, scale_axis_fonts
 from .utils import (
     clone_histogram,
     mc_uncertainty_band_ratio,
@@ -38,7 +39,7 @@ class Plotter:
         self.yrange_ratio = (0, 2)
         self.extraTextCaption = []
 
-        self._legend_pos = [0.70, 0.01, 0.92, 0.86]
+        self._legend_pos = [0.70, 0.01, 0.99, 0.86]
         self._legend_fontsize = 0.03
         self._legend_col = 1
 
@@ -94,7 +95,7 @@ class Plotter:
         print("Luminosity: ", self.lumi)
         print("PubStyle  : ", self.pubStyle)
 
-    def figure(self, canvName="can", w=800, h=600):
+    def figure(self, canvName="can", w=800, h=700):
         if self.pubStyle:
             w, h = 600, 600
 
@@ -115,7 +116,7 @@ class Plotter:
         self.ylabel_ratio = "obs/exp"
         self.yrange_ratio = (0, 2)
         self.extraTextCaption = []
-        self._legend_pos = [0.70, 0.01, 0.92, 0.86]
+        self._legend_pos = [0.70, 0.01, 0.99, 0.86]
         self._legend_fontsize = 0.03
         self._legend_col = 1
         self._reset_draw_state()
@@ -128,18 +129,62 @@ class Plotter:
         self._legend_col = col
         return self
 
-    def _make_legend(self):
-        x1, y1, x2, y2 = self._legend_pos
-        self.mainleg = ROOT.TLegend(x1, y1, x2, y2)
-        legend_style(self.mainleg)
-        self.mainleg.SetTextSize(self._legend_fontsize)
-        self.mainleg.SetTextFont(42)
-        self.mainleg.SetNColumns(self._legend_col)
-        self.mainleg.SetColumnSeparation(0.1)
+    def _font_scale(self):
+        # Applied on Draw; stable for normal canvas sizes.
+        if self.canvas is None:
+            return 1.0
+        return max(1.0, min(1.5, min(self.canvas.GetWw() / 800., self.canvas.GetWh() / 600.)))
 
-        self.ratioleg = ROOT.TLegend(x1, y2 + 0.01, x2, y2 + 0.03)
-        legend_style(self.ratioleg)
-        self.ratioleg.SetTextSize(self._legend_fontsize)
+    def _make_legend(self, n_entries=0, header=False):
+        pos = self._legend_pos
+        if len(pos) == 4:  # Legacy: [x1, y1, x2, top]
+            x1, _, x2, top = pos
+        elif len(pos) == 3:  # [x1, top, x2]
+            x1, top, x2 = pos
+        else:
+            raise ValueError("legend pos must have 3 or 4 coordinates")
+
+        # The full box must be set in the TLegend constructor. Resizing it
+        # with SetY1NDC() after creation can leave the painted entries packed
+        # into the original 0.1-high box on some ROOT versions.
+        rows = math.ceil(n_entries / max(1, self._legend_col)) + int(header)
+        row_height = 0.055
+        available = max(0.02, top - 0.03)
+        height = min(available, rows * row_height + 0.012)
+        self._legend_top = top
+        self.mainleg = ROOT.TLegend(x1, top - height, x2, top)
+        legend_style(self.mainleg)
+        self.mainleg.SetTextFont(42)
+        self.mainleg.SetTextSize(self._legend_fontsize)
+        self.mainleg.SetNColumns(self._legend_col)
+        self.mainleg.SetColumnSeparation(0.05)
+        self.mainleg.SetMargin(0.16)
+        self.ratioleg = None
+
+    def _draw_frame_edges(self, pad):
+        """Redraw thick frame edges above stack bars and error bands."""
+        pad.cd()
+        left, right = pad.GetLeftMargin(), 1.0 - pad.GetRightMargin()
+        bottom, top = pad.GetBottomMargin(), 1.0 - pad.GetTopMargin()
+        for x1, y1, x2, y2 in (
+            (left, bottom, left, top), (right, bottom, right, top),
+            (left, bottom, right, bottom), (left, top, right, top),
+        ):
+            edge = ROOT.TLine()
+            edge.SetLineWidth(pad.GetFrameLineWidth())
+            edge.SetLineColor(ROOT.kBlack)
+            edge.SetNDC(True)
+            edge.DrawLineNDC(x1, y1, x2, y2)
+            self._draw_objects.append(edge)
+
+    @staticmethod
+    def _full_yield(hist):
+        # Include underflow and overflow; independent of variable binning.
+        return sum(hist.GetBinContent(i) for i in range(hist.GetNbinsX() + 2))
+
+    def _source_yields(self):
+        # Kept before rebin/truncation; hist() already applied scaling/density.
+        return {label: self._full_yield(h) for label, _, _, h, _ in self.histogram}
 
     def hist(
         self,
@@ -187,11 +232,21 @@ class Plotter:
         self.histogram.append([label, stack, isData, h, legendStyle])
         return h
 
+    @staticmethod
+    def _fold_flow_bins(h):
+        """Fold ROOT under/overflow into the first/last visible bins."""
+        n = h.GetNbinsX()
+        for flow, target in ((0, 1), (n + 1, n)):
+            h.SetBinContent(target, h.GetBinContent(target) + h.GetBinContent(flow))
+            h.SetBinError(target, (h.GetBinError(target)**2 + h.GetBinError(flow)**2)**0.5)
+            h.SetBinContent(flow, 0.)
+            h.SetBinError(flow, 0.)
+
     def _working_histograms(self, truncate_xrange, rebin):
-        # Draw-time transformations operate on temporary clones. This makes
-        # repeated Draw() calls safe and prevents rebin/overflow accumulation.
+        # All transformations operate on private clones (safe for repeated draws).
         work = []
         for label, stack, is_data, source, legend_style_name in self.histogram:
+            expected = self._full_yield(source)
             h = clone_histogram(source)
             merge_underflow_overflow_in_range(h, self.xrange[0], self.xrange[1])
 
@@ -202,13 +257,29 @@ class Plotter:
                 h = truncate_histogram(h, xmin, xmax)
 
             if isinstance(rebin, int):
+                if rebin < 1:
+                    raise ValueError("rebin must be a positive integer or bin edges")
                 if rebin > 1:
-                    h.Rebin(rebin)
+                    rebinned = h.Rebin(rebin)
+                    if rebinned:
+                        h = rebinned
             else:
                 bins = array("d", rebin)
+                if len(bins) < 2 or any(b >= c for b, c in zip(bins, bins[1:])):
+                    raise ValueError("rebin edges must be strictly increasing")
                 h = h.Rebin(len(bins) - 1, unique_name(h.GetName() + "_rebin"), bins)
                 h.SetDirectory(0)
 
+            # ROOT may move a non-divisible remainder or bins outside explicit
+            # rebin edges into flow bins. Put those contents back on the plot.
+            self._fold_flow_bins(h)
+            actual = self._full_yield(h)
+            tolerance = 1e-9 * max(1., sum(abs(source.GetBinContent(i)) for i in range(source.GetNbinsX() + 2)))
+            if not math.isfinite(actual) or not math.isfinite(expected) or abs(actual - expected) > tolerance:
+                raise RuntimeError(
+                    f"Histogram '{label}' yield changed during plotting: "
+                    f"{expected:.12g} -> {actual:.12g}"
+                )
             work.append([label, stack, is_data, h, legend_style_name])
         return work
 
@@ -284,7 +355,13 @@ class Plotter:
         self.ratioPad.SetLogx(bool(logX))
         self.ratioPad.SetLogy(bool(ratio_logY))
 
+        # Source yields are invariant under display ranges and rebinning.
+        source_yields = [self._full_yield(item[3]) for item in self.histogram]
         work = self._working_histograms(truncate_xrange, rebin)
+        work_index = {id(item): i for i, item in enumerate(work)}
+        yield_by_hist = {id(item[3]): y for item, y in zip(work, source_yields)}
+        def display_yield(item):
+            return yield_by_hist[id(item[3])]
         self._draw_objects.extend(item[3] for item in work)
         backgrounds = [item for item in work if item[1]]
         data = [item for item in work if item[2] and not item[1]]
@@ -313,14 +390,30 @@ class Plotter:
                 self.h_data.Add(item[3])
 
         #summary text to build the table        
+        # Keep the table consistent with the legend (including flow bins).
+        def source_summary(item):
+            source = self.histogram[work_index[id(item)]][3]
+            return (display_yield(item), sum(source.GetBinError(i)**2 for i in range(source.GetNbinsX() + 2))**0.5)
+
+        def combine_summary(items):
+            if not items:
+                return None
+            yields_errors = [source_summary(item) for item in items]
+            return (sum(v for v, _ in yields_errors), sum(e*e for _, e in yields_errors)**0.5)
+
         self._last_draw_summary = {
-            "backgrounds": [(label, *self._yield_and_error(hist), hist.GetFillColor()) for label, _, _, hist, _ in backgrounds],
-            "signals": [(label, *self._yield_and_error(hist),hist.GetFillColor()) for label, _, _, hist, _ in signals],
-            "total_background": self._yield_and_error(self.h_totbkg),
-            "data": self._yield_and_error(self.h_data),
+            "backgrounds": [(item[0], *source_summary(item), item[3].GetFillColor()) for item in backgrounds],
+            "signals": [(item[0], *source_summary(item), item[3].GetFillColor()) for item in signals],
+            "total_background": combine_summary(backgrounds),
+            "data": combine_summary(data),
         }
                 
-        self._make_legend()
+        n_entries = (int(self.h_data is not None) + len(backgrounds)
+                     + len(signals) + int(self.h_err is not None))
+        has_header = (not (self.pubStyle and not showStat)
+                      and bool(data and backgrounds)
+                      and sum(display_yield(item) for item in backgrounds) != 0)
+        self._make_legend(n_entries, header=has_header)
         stack_legend = sorted(backgrounds, key=lambda item: item[3].Integral(), reverse=True) if sortLegend else backgrounds
         signal_legend = sorted(signals, key=lambda item: item[3].Integral(), reverse=True) if sortLegend else signals
         data_label = data[0][0] if data else "Data"
@@ -335,19 +428,20 @@ class Plotter:
             if self.h_err is not None:
                 self.mainleg.AddEntry(self.h_err, "Uncertainty", "f")
         else:
-            if self.h_data is not None and self.h_totbkg is not None and self.h_totbkg.Integral() and self.h_data.Integral():
-                self.ratioleg.SetHeader(
-                    f"obs/exp={self.h_data.Integral() / self.h_totbkg.Integral():.2f}, "
-                    f"Exp={self.h_totbkg.Integral():.3e}"
-                )
             if self.h_data is not None:
-                self.mainleg.AddEntry(self.h_data, f"{data_label} [{self.h_data.Integral():.3e}]", "ep")
-            for label, _, _, hist, _ in stack_legend:
-                self.mainleg.AddEntry(hist, f"{label} [{hist.Integral():.3e}]", "f")
-            for label, _, _, hist, legstyle in signal_legend:
-                self.mainleg.AddEntry(hist, f"{label} [{hist.Integral():.3e}]", sigLegStyle if legstyle == "lf" else legstyle)
+                self.mainleg.AddEntry(self.h_data, f"{data_label} [{sum(display_yield(item) for item in data):.3e}]", "ep")
+            for item in stack_legend:
+                label, _, _, hist, _ = item
+                self.mainleg.AddEntry(hist, f"{label} [{display_yield(item):.3e}]", "f")
+            for item in signal_legend:
+                label, _, _, hist, legstyle = item
+                self.mainleg.AddEntry(hist, f"{label} [{display_yield(item):.3e}]", sigLegStyle if legstyle == "lf" else legstyle)
             if self.h_err is not None:
                 self.mainleg.AddEntry(self.h_err, "Uncertainty", "f")
+            obs = sum(display_yield(item) for item in data)
+            exp = sum(display_yield(item) for item in backgrounds)
+            if data and backgrounds and exp:
+                self.mainleg.SetHeader(f"Obs/Exp={obs / exp:.2f}, Exp={exp:.3e}")
 
         # Explicitly attach pads to this canvas. This matters when many canvases
         # are produced sequentially and ROOT.gPad still points to an older pad.
@@ -362,6 +456,7 @@ class Plotter:
             # Force that paint before asking for GetXaxis()/GetYaxis().
             self.mainPad.Update()
             stack_style(self.h_stack, self.ylabel)
+            scale_axis_fonts(self.h_stack, self._font_scale())
             self.h_stack.SetMinimum(self.yrange[0])
             self.h_stack.SetMaximum(self.yrange[1])
             self.h_stack.GetXaxis().SetRangeUser(*self.xrange)
@@ -369,6 +464,7 @@ class Plotter:
 
         for index, (_, _, _, hist, _) in enumerate(signals):
             stack_style(hist, self.ylabel)
+            scale_axis_fonts(hist, self._font_scale())
             hist.GetXaxis().SetRangeUser(*self.xrange)
             hist.GetYaxis().SetRangeUser(*self.yrange)
             hist.Draw("HIST" if index == 0 and self.h_stack is None else "HIST SAME")
@@ -377,14 +473,20 @@ class Plotter:
             self.h_data.SetBinErrorOption(ROOT.TH1.EBinErrorOpt.kPoisson)
             self.h_data.GetXaxis().SetRangeUser(*self.xrange)
             self.h_data.GetYaxis().SetRangeUser(*self.yrange)
-            self.h_data.Draw("E1X0 SAME")            
+            if self.h_stack is None and not signals:
+                stack_style(self.h_data, self.ylabel)
+                scale_axis_fonts(self.h_data, self._font_scale())
+                self.h_data.Draw("E1X0")
+            else:
+                self.h_data.Draw("E1X0 SAME")            
             
+        # Do not resize legend text after filling it: width estimates can
+        # shrink names and yields until they are effectively invisible.
         self.mainleg.Draw()
-        if not self.pubStyle:
-            self.ratioleg.Draw()
 
         self._draw_experiment_label(extraTextOffset)
         ROOT.gPad.RedrawAxis()
+        self._draw_frame_edges(self.mainPad)
         self.mainPad.SetTickx(1)
         self.mainPad.SetTicky(1)
         self.mainPad.Update()
@@ -407,6 +509,7 @@ class Plotter:
                 self.h_ratio.SetBinError(i, 0)
 
         ratio_style(self.h_ratio, self.xlabel, self.ylabel_ratio)
+        scale_axis_fonts(self.h_ratio, self._font_scale(), ratio=True)
         self.h_ratio.GetXaxis().SetRangeUser(*self.xrange)
         self.h_ratio.GetYaxis().SetRangeUser(*self.yrange_ratio)
         self.h_ratio.GetXaxis().SetTickSize(0.08)
@@ -431,6 +534,7 @@ class Plotter:
         self.h_ratio.DrawCopy("E1X0 SAME")
         self.ratioPad.SetTickx(1)
         ROOT.gPad.RedrawAxis()
+        self._draw_frame_edges(self.ratioPad)
         self.ratioPad.Update()
         self.canvas.Update()
         self.canvas.Draw()
@@ -452,10 +556,15 @@ class Plotter:
         else:
             return
 
+        #Internal, Simulation Internal Text Position
+        # Minimum spacing between experiment and extra text
+        min_offset = 0.09 if self.experiment == "ATLAS" else 0.08
+        offset = max(extraTextOffset, min_offset)
         if self.pubStyle:
             extraTextOffset += 0.02
         exp.DrawLatex(left, y, self.experiment)
-        extra.DrawLatex(left + extraTextOffset, y, str(self.extraText))
+        extra.DrawLatex(left + offset, y, str(self.extraText))
+
         self._draw_objects.extend([exp, extra, lumi])
 
         if self.experiment == "CMS":

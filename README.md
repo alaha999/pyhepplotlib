@@ -28,23 +28,20 @@ import ROOT
 import pyplotlib.pyplot as plt
 
 # Global analysis style: persists across figures.
-plt.style("ATLAS", lumi=140, year="Run 3", energy="13 TeV", extraText="Internal", pubStyle=False)
+plt.style("ATLAS", lumi=51.8, year=2023, energy="13.6 TeV", extraText="", pubStyle=True)
 
 plt.figure()
-plt.hist(h_qcd, color=ROOT.kAzure+1, label="Multijet", stack=True, fill=True)
-plt.hist(h_top, color=ROOT.kOrange+1, label="Top", stack=True, fill=True)
-plt.hist(h_sig, color=ROOT.kRed, label="Signal", scale=10)
-plt.hist(h_data, color=ROOT.kBlack, label="Data", isData=True)
-
-plt.xaxis("Jet p_{T} [GeV]", (200, 1500))
-plt.yaxis("Events", (0.1, 1e7))
-plt.ratio_axis("Data / MC", (0.5, 1.5))
-plt.legend(pos=[0.68, 0.45, 0.93, 0.87], fontsize=0.03, col=1)
-plt.caption("Example selection")
-
-# These are the original Plotter.Draw options.
-plt.draw(logY=True, rebin=2, unc_fstyle=1003, sortLegend=True)
-plt.savefig("jet_pt.png")
+plt.hist(qcd, label="Multijet", color=ROOT.kAzure + 1, stack=True, fill=True)
+plt.hist(top, label="Top", color=ROOT.kOrange + 1, stack=True, fill=True)
+plt.hist(signal, label="Signal x 10", color=ROOT.kRed, scale=10)
+plt.hist(data, label="Data", color=ROOT.kBlack, isData=True)
+plt.xaxis("Observable [GeV]", (0, 400))
+plt.yaxis("Events", (0.1, 2e4))
+plt.ratio_axis("Data / Pred.", (0.5, 1.5))
+plt.legend(pos=[0.64, 0.50, 0.94, 0.84])
+plt.caption("e#mu SR")
+plt.draw(logY=True, showStat=False)
+save("jet_pt.png")
 ```
 For uncommon advanced settings you can access the current engine:
 
@@ -71,20 +68,87 @@ p.savefig("plot.pdf")
 ```
 
 *For more test plots checkout the `tests/README.md` gallery*
-- plot a single histogram
-- overlay of histograms 
-- background and signal with stat
-- data, background, and signal with stat
-- publication style plot
+## Plot Gallery
+
+The following examples demonstrate the plotting functionality, from minimal histograms to full analysis-style figures.
+
+<table>
+<tr>
+<td width="50%" align="center">
+  <a href="tests/outputs/01_minimal.png">
+    <img src="tests/outputs/01_minimal.png" width="100%" alt="Minimal ROOT Histogram">
+  </a>
+  <br>
+  <b>01 — Minimal ROOT Histogram</b>
+  <br>
+  Basic histogram plotting using <code>plt.hist(h)</code>.
+</td>
+<td width="50%" align="center">
+  <a href="tests/outputs/02_overlay.png">
+    <img src="tests/outputs/02_overlay.png" width="100%" alt="Histogram Overlay">
+  </a>
+  <br>
+  <b>02 — Histogram Overlay</b>
+  <br>
+  Multiple histograms, line styles, axis ranges, and logarithmic scales.
+</td>
+</tr>
+
+<tr>
+<td width="50%" align="center">
+  <a href="tests/outputs/03_stack_data_ratio.png">
+    <img src="tests/outputs/03_stack_data_ratio.png" width="100%" alt="Stack and Ratio">
+  </a>
+  <br>
+  <b>03 — Stack + Data/MC Ratio</b>
+  <br>
+  Stacked backgrounds, scaled signals, observed data, and MC uncertainty.
+</td>
+<td width="50%" align="center">
+  <a href="tests/outputs/04_atlas_analysis.png">
+    <img src="tests/outputs/04_atlas_analysis.png" width="100%" alt="ATLAS Analysis">
+  </a>
+  <br>
+  <b>04 — ATLAS Analysis Style</b>
+  <br>
+  ATLAS labels, luminosity, custom legends, captions, and ratio ranges.
+</td>
+</tr>
+
+<tr>
+<td width="50%" align="center">
+  <a href="tests/outputs/05_publication.png">
+    <img src="tests/outputs/05_publication.png" width="100%" alt="Publication Style">
+  </a>
+  <br>
+  <b>05 — Publication Style</b>
+  <br>
+  Clean publication-style figures with statistical yields hidden.
+</td>
+<td width="50%" align="center">
+  <a href="tests/outputs/03_pietest_atlas.pdf">
+    <img src="tests/outputs/03_pietest_atlas.png" width="100%" alt="ATLAS Pie Chart">
+  </a>
+  <br>
+  <b>07 — ATLAS Pie Chart</b>
+  <br>
+  Background composition visualized as a pie chart.
+</td>
+</tr>
+</table>
+
+---
+
 
 ***ToDo***
 
 This is rough to-do list for me in my free time:
-- 2D histogram
-- TEfficiency plots
-- TGraph for limit plots (Yeah, I am sad, I want to make p-value discovery plots. Should I include it first? xD)
-- yaml config based plotting wrapper for extensive analysis level collaboration and plotting
-- github CI/CD pipeline
+- [ ] 2D histogram     
+- [ ] TEfficiency plots     
+- [ ] TGraph for limit plots (Yeah, I am sad, I want to make p-value discovery plots. Should I include it first? xD)
+- [ ] yaml config based plotting wrapper for extensive analysis level collaboration and plotting     
+- [x] github CI/CD pipeline
+- [x] Pie chart
 
 
 ## Installation
