@@ -30,7 +30,7 @@ plt.hist(signal, label="Signal")
 plt.hist(data, label="Data", isData=True)
 
 plt.draw()
-plt.pieChart(extraTextOffset=0.135,savefig=f"{OUTPUT_DIR}/01_pietest.pdf")
+plt.pieChart(extraTextOffset=0.135,savefig=f"{OUTPUT_DIR}/01_pietest.png")
 
 ok("normal pie chart")
 
@@ -83,7 +83,7 @@ plt.hist(signal, label="Signal")
 plt.hist(data, label="Data", isData=True)
 
 plt.draw()
-plt.pieChart(savefig=f"{OUTPUT_DIR}/03_pietest_atlas.pdf")
+plt.pieChart(savefig=f"{OUTPUT_DIR}/03_pietest_atlas.png")
 
 ok("pie chart with experiment label")
 

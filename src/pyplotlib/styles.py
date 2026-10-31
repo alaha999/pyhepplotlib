@@ -20,6 +20,10 @@ def pad_style(pad, rpad, pubstyle=False):
     rpad.SetTickx(1)
     rpad.SetTicky(1)
 
+    for p in (pad, rpad):
+        p.SetFrameLineWidth(3)
+        p.SetFrameLineColor(ROOT.kBlack)
+
 
 def stack_style(h, ylabel="Events"):
     h.GetYaxis().SetTitle(ylabel)
@@ -37,7 +41,7 @@ def stack_style(h, ylabel="Events"):
     h.GetYaxis().SetLabelFont(43)
     h.GetYaxis().SetLabelSize(15)
     h.GetYaxis().SetNdivisions(510)
-    h.GetYaxis().SetTickSize(0.02)
+    h.GetYaxis().SetTickSize(0.035)
     h.SetTitle("")
 
 
@@ -48,7 +52,7 @@ def ratio_style(h, xlabel="X", ylabel="obs/exp"):
     h.GetYaxis().CenterTitle()
     h.GetXaxis().SetTitleFont(43)
     h.GetXaxis().SetTitleSize(20)
-    h.GetXaxis().SetTitleOffset(1.2)
+    h.GetXaxis().SetTitleOffset(1.1)
     h.GetXaxis().SetLabelFont(43)
     h.GetXaxis().SetLabelSize(14)
     h.GetXaxis().SetNdivisions(513)
@@ -58,6 +62,8 @@ def ratio_style(h, xlabel="X", ylabel="obs/exp"):
     h.GetYaxis().SetLabelFont(43)
     h.GetYaxis().SetLabelSize(14)
     h.GetYaxis().SetNdivisions(503)
+    h.GetXaxis().SetTickSize(0.08)
+    h.GetYaxis().SetTickSize(0.045)
     h.SetTitle("")
 
 
@@ -103,3 +109,12 @@ def atlas_labels():
     lumi.SetTextFont(42)
     lumi.SetTextSize(0.044)
     return experiment, extra, lumi
+
+
+def scale_axis_fonts(h, scale=1.0, ratio=False):
+    """Scale pixel-sized axis fonts on each Draw (not a resize callback)."""
+    x, y = h.GetXaxis(), h.GetYaxis()
+    x.SetTitleSize(24 * scale)
+    x.SetLabelSize((17 if ratio else 0) * scale)
+    y.SetTitleSize(22 * scale)
+    y.SetLabelSize((17 if ratio else 18) * scale)
