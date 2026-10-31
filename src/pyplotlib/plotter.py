@@ -2,7 +2,7 @@ import ROOT
 import math
 from array import array
 
-from .styles import atlas_labels, cms_labels, legend_style, pad_style, ratio_style, stack_style, scale_axis_fonts
+from .styles import atlas_labels, cms_labels, legend_style, pad_style, ratio_style, stack_style, hist2d_style, scale_axis_fonts
 from .utils import (
     clone_histogram,
     mc_uncertainty_band_ratio,
@@ -10,6 +10,9 @@ from .utils import (
     root_value,
     truncate_histogram,
     unique_name,
+    rebin_histogram_2d,
+    full_integral_2d,
+    axis_edges_2d,
 )
 
 
@@ -31,10 +34,13 @@ class Plotter:
         self.mainPad = None
         self.ratioPad = None
         self.histogram = []
+        self.histogram2d = None
         self.xlabel = "X"
         self.ylabel = "Events"
+        self.zlabel = "Events"        
         self.xrange = None
         self.yrange = (0.01, 1E8)
+        self.zrange = None                
         self.ylabel_ratio = "obs/exp"
         self.yrange_ratio = (0, 2)
         self.extraTextCaption = []
@@ -78,7 +84,11 @@ class Plotter:
     def set_yaxis(self, ylabel="Y-axis", yrange=(0.01, 1E8)):
         self.ylabel = ylabel
         self.yrange = yrange
-
+        
+    def set_zaxis(self, zlabel="Events", zrange=None):
+        self.zlabel = zlabel
+        self.zrange = zrange
+        
     def set_yaxis_ratio(self, ylabel="obs/exp", yrange=(0, 2)):
         self.ylabel_ratio = ylabel
         self.yrange_ratio = yrange
@@ -232,6 +242,60 @@ class Plotter:
         self.histogram.append([label, stack, isData, h, legendStyle])
         return h
 
+    ##2D histograms
+    def hist2d(
+        self,
+        histo,
+        rebinx=1,
+        rebiny=1,
+        cmap="viridis",
+        fold=True,
+        label=None,
+        scale=1.0,
+    ):
+        if self.histogram:
+            raise RuntimeError("Cannot mix 1D and 2D histograms.")
+
+        if self.histogram2d is not None:
+            raise RuntimeError("Only one TH2 per figure is supported.")
+
+        histograms = (
+            histo if isinstance(histo, (list, tuple))
+            else [histo]
+        )
+
+        if not histograms:
+            raise ValueError("No TH2 histogram provided.")
+
+        for hist in histograms:
+            if not hist.InheritsFrom("TH2"):
+                raise TypeError("hist2d() requires ROOT.TH2.")
+
+        h = clone_histogram(histograms[0])
+
+        for other in histograms[1:]:
+
+            if (
+                    axis_edges_2d(h.GetXaxis()) != axis_edges_2d(other.GetXaxis())
+                    or axis_edges_2d(h.GetYaxis()) != axis_edges_2d(other.GetYaxis())
+            ):
+                raise ValueError("TH2 binning mismatch.")
+
+            h.Add(other)
+
+        h.Scale(scale)
+
+        self.histogram2d = {
+            "source": h,
+            "rebinx": rebinx,
+            "rebiny": rebiny,
+            "cmap": cmap,
+            "fold": fold,
+            "label": label,
+        }
+
+        return h
+    
     @staticmethod
     def _fold_flow_bins(h):
         """Fold ROOT under/overflow into the first/last visible bins."""
@@ -540,6 +604,121 @@ class Plotter:
         self.canvas.Draw()
         return self.canvas
 
+    ##Draw2D
+    def Draw2D(
+        self,
+        logX=False,
+        logY=False,
+        logZ=False,
+        option="COLZ",
+        extraTextOffset=0.16,
+    ):
+        cfg = self.histogram2d
+        
+        if cfg is None:
+            raise RuntimeError("No TH2 histogram registered.")
+
+        pad = self.canvas
+        pad.cd()
+        pad.Clear()
+        
+        self._reset_draw_state()
+        # Match the existing main-pad styling
+        pad.SetLeftMargin(self.ratioPad.GetLeftMargin())
+        pad.SetRightMargin(0.18)  # Space for Z color bar
+        pad.SetTopMargin(0.11)
+        pad.SetBottomMargin(0.14)
+        
+        pad.SetFrameLineWidth(self.ratioPad.GetFrameLineWidth())
+        pad.SetFrameLineColor(ROOT.kBlack)
+
+        pad.SetTickx(1)
+        pad.SetTicky(1)
+        
+        pad.SetLogx(logX)
+        pad.SetLogy(logY)
+        pad.SetLogz(logZ)
+        
+        palettes = {
+            "viridis": ROOT.kViridis,
+            "bird": ROOT.kBird,
+            "rainbow": ROOT.kRainBow,
+            "cool": ROOT.kCool,
+        }
+
+        palette = palettes.get(cfg["cmap"].lower())
+
+        if palette is None:
+            raise ValueError(f"Unknown palette: {cfg['cmap']}")
+
+        ROOT.gStyle.SetPalette(palette)
+
+        # Rebin and fold on a private histogram.
+        yrange = (
+            None if self.yrange == (0.01, 1E8)
+            else self.yrange
+        )
+        
+        h = rebin_histogram_2d(
+            cfg["source"],
+            rebinx=cfg["rebinx"],
+            rebiny=cfg["rebiny"],
+            xrange=self.xrange,
+            yrange=yrange,
+            fold=cfg["fold"],
+        )
+
+        self._draw_objects.append(h)
+        
+        hist2d_style(
+            h,
+            self.xlabel,
+            self.ylabel,
+            self.zlabel,
+        )
+
+        if self.xrange is not None:
+            h.GetXaxis().SetRangeUser(*self.xrange)
+
+        if yrange is not None:
+            h.GetYaxis().SetRangeUser(*yrange)
+
+        if self.zrange is not None:
+            h.SetMinimum(self.zrange[0])
+            h.SetMaximum(self.zrange[1])
+
+        h.Draw(option)
+        
+        pad.Update()
+        
+        if cfg["label"]:
+            x1, _, x2, ytop = self._legend_pos
+            legend = ROOT.TLegend(x1, ytop - 0.055, x2, ytop)
+            legend_style(legend)
+            legend.SetTextSize(self._legend_fontsize)
+            legend.SetTextFont(42)
+            # No box, background, or symbols
+            legend.SetBorderSize(0)
+            legend.SetFillStyle(0)
+            # Text-only entry: no histogram object
+            legend.AddEntry(0, cfg["label"], "")
+
+            legend.Draw()
+            self._draw_objects.append(legend)
+        
+        # Reuse the existing experiment/caption method.
+        # Pass the canvas explicitly without changing its implementation.
+        self._draw_experiment_label(
+            extraTextOffset,
+            pad=pad,
+        )
+
+        pad.RedrawAxis()
+        pad.Modified()
+        pad.Update()
+
+        return self.canvas
+    
     def _draw_experiment_label(self, extraTextOffset=0.18,pad=None):
         pad = pad or self.mainPad
         

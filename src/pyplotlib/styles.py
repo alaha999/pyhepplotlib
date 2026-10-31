@@ -66,6 +66,28 @@ def ratio_style(h, xlabel="X", ylabel="obs/exp"):
     h.GetYaxis().SetTickSize(0.045)
     h.SetTitle("")
 
+def hist2d_style(h, xlabel, ylabel, zlabel):
+
+    h.SetTitle("")
+
+    for axis, title in (
+        (h.GetXaxis(), xlabel),
+        (h.GetYaxis(), ylabel),
+        (h.GetZaxis(), zlabel),
+    ):
+        axis.SetTitle(title)
+
+        axis.SetTitleFont(43)
+        axis.SetLabelFont(43)
+
+        axis.SetTitleSize(23)
+        axis.SetLabelSize(18)
+
+        axis.SetTickSize(0.035)
+
+    h.GetXaxis().SetTitleOffset(1.15)
+    h.GetYaxis().SetTitleOffset(1.40)
+    h.GetZaxis().SetTitleOffset(1.25)    
 
 def legend_style(legend):
     legend.SetTextFont(41)

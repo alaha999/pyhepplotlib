@@ -139,3 +139,94 @@ def mc_uncertainty_band_ratio(h_mc):
         unc_band.SetPointError(i - 1, width, width, rel_err, rel_err)
 
     return unc_band
+
+
+def axis_edges_2d(axis):
+    """All actual axis edges, including variable-width ROOT axes."""
+    return [axis.GetBinLowEdge(i) for i in range(1, axis.GetNbins() + 2)]
+
+
+def _rebin_edges_2d(axis, spec):
+    edges = axis_edges_2d(axis)
+    if isinstance(spec, int) and not isinstance(spec, bool):
+        if spec == 1:
+            return edges
+        if spec < 1:
+            raise ValueError('rebinx/rebiny must be positive')
+        return [edges[i] for i in range(0, len(edges) - 1, spec)] + [edges[-1]]
+    try:
+        requested = [float(v) for v in spec]
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Rebinning requires a positive integer or bin-edge sequence") from exc
+    if len(requested) < 2 or any(not math.isfinite(v) for v in requested) or any(a >= b for a, b in zip(requested, requested[1:])):
+        raise ValueError('Rebin edges must be finite and strictly increasing')
+    for edge in requested:
+        if not any(math.isclose(edge, orig, rel_tol=1e-10, abs_tol=1e-10) for orig in edges):
+            raise ValueError(f'Rebin edge {edge:g} is not a source bin boundary')
+    return requested
+
+
+def full_integral_2d(h):
+    return sum(h.GetBinContent(ix, iy)
+               for ix in range(h.GetNbinsX() + 2)
+               for iy in range(h.GetNbinsY() + 2))
+
+
+def rebin_histogram_2d(source, rebinx=1, rebiny=1, xrange=None, yrange=None, fold=True):
+    """Rebin TH2 without splitting source bins; optionally fold all exterior cells.
+
+    Ranges select visible source bins (as ROOT SetRangeUser does). When fold=True
+    overflow, underflow and out-of-range bins are folded to those boundaries.
+    """
+    xedges = _rebin_edges_2d(source.GetXaxis(), rebinx)
+    yedges = _rebin_edges_2d(source.GetYaxis(), rebiny)
+    if xrange is not None and not xrange[0] < xrange[1]:
+        raise ValueError('xrange must be increasing')
+    if yrange is not None and not yrange[0] < yrange[1]:
+        raise ValueError('yrange must be increasing')
+    dest = ROOT.TH2D(unique_name('h2_rebin'), source.GetTitle(),
+                     len(xedges)-1, array('d', xedges),
+                     len(yedges)-1, array('d', yedges))
+    dest.SetDirectory(0)
+    dest.Sumw2()
+    # Retain axis titles and style-relevant information.
+    dest.GetXaxis().SetTitle(source.GetXaxis().GetTitle())
+    dest.GetYaxis().SetTitle(source.GetYaxis().GetTitle())
+
+    def destination_bins(axis, out_axis, wanted):
+        low = 1 if wanted is None else max(1, min(out_axis.GetNbins(), out_axis.FindFixBin(wanted[0])))
+        high = out_axis.GetNbins() if wanted is None else max(1, min(out_axis.GetNbins(), out_axis.FindFixBin(math.nextafter(wanted[1], -math.inf))))
+        if low > high:
+            raise ValueError('Plot range does not contain any output bins')
+        indices = []
+        n = axis.GetNbins()
+        for i in range(n+2):
+            if i == 0:
+                j = 0
+            elif i == n+1:
+                j = out_axis.GetNbins()+1
+            else:
+                j = out_axis.FindFixBin(axis.GetBinCenter(i))
+            if fold:
+                j = min(high, max(low, j))
+            indices.append(j)
+        return indices
+
+    xmap = destination_bins(source.GetXaxis(), dest.GetXaxis(), xrange)
+    ymap = destination_bins(source.GetYaxis(), dest.GetYaxis(), yrange)
+    for ix in range(source.GetNbinsX()+2):
+        for iy in range(source.GetNbinsY()+2):
+            dx, dy = xmap[ix], ymap[iy]
+            content = source.GetBinContent(ix, iy)
+            error = source.GetBinError(ix, iy)
+            dest.SetBinContent(dx, dy, dest.GetBinContent(dx, dy) + content)
+            dest.SetBinError(dx, dy, math.hypot(dest.GetBinError(dx, dy), error))
+
+    dest.SetEntries(source.GetEntries())
+    expected, observed = full_integral_2d(source), full_integral_2d(dest)
+    tol = 1e-9 * max(1.0, sum(abs(source.GetBinContent(ix, iy))
+                                for ix in range(source.GetNbinsX()+2)
+                                for iy in range(source.GetNbinsY()+2)))
+    if not all(math.isfinite(x) for x in (expected, observed)) or abs(expected-observed) > tol:
+        raise RuntimeError(f'2D yield changed during rebin/folding: {expected} -> {observed}')
+    return dest
