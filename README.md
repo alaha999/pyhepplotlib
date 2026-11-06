@@ -6,6 +6,18 @@ A small PyROOT histogram plotting library with a minimal `matplotlib`-style inte
 - ROOT/pyROOT
 - tabulate package for pretty printing
 
+## Installation
+
+Open a terminal and go to your work dir. Then follow these steps for a system wide setup:
+
+```bash
+git clone https://github.com/alaha999/pyhepplotlib.git
+source setup.sh
+source run-test.sh
+```
+If everything went fine, you should see example plots in `tests/outputs/`
+
+Now you can start doing your own plotting by calling (from anywhere in your system). In LXPLUS, create a venv, and install this software.
 
 ## Quick start
 
@@ -135,6 +147,18 @@ The following examples demonstrate the plotting functionality, from minimal hist
   Background composition visualized as a pie chart.
 </td>
 </tr>
+<tr>
+<td width="50%" align="center">
+    <a href="tests/outputs/normalized_overlay.png">
+    <img src="tests/outputs/normalized_overlay.png" width="100%" alt="Overlay Style">
+  </a>
+  <br>
+  <b>05 — Overlay plots</b>
+  <br>
+  overlay plots
+</td>
+</tr>
+
 </table>
 
 ---
@@ -232,28 +256,7 @@ This is rough to-do list for me in my free time:
 - [x] github CI/CD pipeline
 - [x] Pie chart
 
-
-## Installation
-
-Open a terminal and go to your work dir. Then follow these steps for a system wide setup:
-
-```bash
-git clone https://github.com/alaha999/pyhepplotlib.git
-source setup.sh
-source run-test.sh
-```
-If everything went fine, you should see example plots in `tests/outputs/`
-
-Now you can start doing your own plotting by calling (from anywhere in your system),
-
-```bash
-import pyplotlib.pyplot as plt
-plt.style("CMS", lumi=138, year=2018, energy="13 TeV", extraText="Internal")
-plt.figure()
-plt.hist(h_signal, label="Signal", color=ROOT.kBlue)  #preparing a histogram h_signal is up to you!
-plt.draw()
-plt.savefig("minimal_histogram_test.png")
-```
+-----
 
 ## Repo structure
 
@@ -274,18 +277,9 @@ Repo structure for visualisation
 │       ├── styles.py
 │       └── utils.py
 └── tests
-    ├── dummy_data.py
-    ├── gallery.ipynb
-    ├── outputs
-    │   ├── 01_minimal.png
-    │   ├── 02_overlay.png
-    │   ├── 03_stack_data_ratio.png
-    │   ├── 04_atlas_analysis.png
-    │   ├── 05_publication.png
-    │   └── 06_rebin_overflow.png
-    ├── README.md
-    ├── test_core.py
-    └── test_gallery.py
+    ├── ...
+    ├── ...
+    ├── ...
 
 ```
 

@@ -39,6 +39,11 @@ echo
 echo "[INFO] Running pieChart test..."
 python3 tests/test_pie_chart.py
 
+# Overlay test
+echo
+echo "[INFO] Running overlay test..."
+python3 tests/test_overlay.py
+
 #2D histogram test
 echo
 echo "[INFO] Running 2D hist test..."
