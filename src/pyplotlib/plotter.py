@@ -401,6 +401,7 @@ class Plotter:
         unc_fcolor=ROOT.kGray,
         extraTextOffset=0.08,
         sigLegStyle="lf",
+        drawOption="HIST",
         sortLegend=True,
         showStat=False,
     ):
@@ -531,7 +532,7 @@ class Plotter:
             scale_axis_fonts(hist, self._font_scale())
             hist.GetXaxis().SetRangeUser(*self.xrange)
             hist.GetYaxis().SetRangeUser(*self.yrange)
-            hist.Draw("HIST" if index == 0 and self.h_stack is None else "HIST SAME")
+            hist.Draw(drawOption if index == 0 and self.h_stack is None else f"{drawOption} SAME")
 
         if self.h_data is not None:
             self.h_data.SetBinErrorOption(ROOT.TH1.EBinErrorOpt.kPoisson)
@@ -762,22 +763,24 @@ class Plotter:
 
         return self.canvas
 
-    def pieChart(self,
-                 savefig=None,
-                 title="",
-                 labelSize=0.035,
-                 radius=0.25,
-                 angle=0,
-                 w=600,
-                 h=600,
-                 extraTextOffset=0.18,
-                 option=""):
-        if self._last_draw_summary is None: raise RuntimeError("Call Draw() before pieChart().")
+    def pieChart(self, savefig=None, title="", labelSize=0.03,
+                 radius=0.25, angle=0, w=700, h=600,
+                 extraTextOffset=0.18, option="",
+                 legendCols=0,legendPos=(0.65, 0.5, 0.95)):
+        
+        if self._last_draw_summary is None:
+            raise RuntimeError("Call Draw() before pieChart().")
 
-        bkgs = [x for x in self._last_draw_summary["backgrounds"] if x[1] > 0]
-        if not bkgs: raise RuntimeError("No positive background yields available for pieChart().")
+        bkgs = sorted(
+            [x for x in self._last_draw_summary["backgrounds"] if x[1] > 0],
+            key=lambda x: x[1], reverse=True
+        )
+        if not bkgs:
+            raise RuntimeError("No positive background yields.")
 
         values = array("d", [x[1] for x in bkgs])
+        total = sum(values)
+        n = len(bkgs)
 
         canvas = ROOT.TCanvas(unique_name("pie_canvas"), title, w, h)
         canvas.SetLeftMargin(self.mainPad.GetLeftMargin())
@@ -786,21 +789,46 @@ class Plotter:
         canvas.SetBottomMargin(self.mainPad.GetBottomMargin())
         
         pie = ROOT.TPie(unique_name("pie"), title, len(values), values)
-        pie.SetLabelFormat("%txt (%perc)")
         pie.SetRadius(radius)
+        pie.SetX(0.35)
         pie.SetAngularOffset(angle)
-
+        pie.SetLabelFormat("")
         pie.SetTextSize(labelSize)
 
-        for i, (label, _, _, color) in enumerate(bkgs):
+        # Automatic columns and legend height
+        cols = legendCols if legendCols > 0 else (1 if n <= 4 else 2 if n <= 8 else 3)
+        rows = (n + cols - 1) // cols
+        
+        rowHeight = 0.05
+        legendHeight = rows * rowHeight
+        
+        # User-configurable position: (x1, yCenter, x2)
+        x1, yCenter, x2 = legendPos
+        y1 = yCenter - legendHeight / 2
+        y2 = yCenter + legendHeight / 2
+        
+        legend = ROOT.TLegend(x1, y1, x2, y2)
+        legend_style(legend)
+        legend.SetTextFont(42)
+        legend.SetTextSize(labelSize)
+        legend.SetNColumns(cols)
+        legend.SetColumnSeparation(0.05)
+        for i, (label, yld, _, color) in enumerate(bkgs):
             pie.GetSlice(i).SetTitle(label)
             pie.GetSlice(i).SetFillColor(color)
+            legend.AddEntry(pie.GetSlice(i), f"{label} [{100*yld/total:.1f}%]", "f")
 
+        canvas.cd()
         pie.Draw(option)
-        self._draw_experiment_label(extraTextOffset,pad=canvas)
+        legend.Draw()
+        self._draw_experiment_label(extraTextOffset, pad=canvas)
         canvas.Update()
 
-        if savefig: canvas.SaveAs(savefig)
+        canvas._pie = pie
+        canvas._legend = legend
+
+        if savefig:
+            canvas.SaveAs(savefig)
 
         return canvas
             
