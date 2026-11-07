@@ -1,26 +1,26 @@
 import ROOT
 
 
-def pad_style(pad, rpad, pubstyle=False):
-    left, right = 0.12, 0.30
-    if pubstyle:
-        left, right = 0.12, 0.05
+def pad_style(pad, rpad=None, pubstyle=False):
+    left, right = 0.12, 0.05 if pubstyle else 0.30
 
     pad.SetLeftMargin(left)
     pad.SetRightMargin(right)
     pad.SetTopMargin(0.09)
-    pad.SetBottomMargin(0.01)
+    pad.SetBottomMargin(0.01 if rpad else 0.13)
     pad.SetTickx(1)
     pad.SetTicky(1)
 
-    rpad.SetLeftMargin(left)
-    rpad.SetRightMargin(right)
-    rpad.SetTopMargin(0.04)
-    rpad.SetBottomMargin(0.35)
-    rpad.SetTickx(1)
-    rpad.SetTicky(1)
+    if rpad is not None:
+        rpad.SetLeftMargin(left)
+        rpad.SetRightMargin(right)
+        rpad.SetTopMargin(0.04)
+        rpad.SetBottomMargin(0.35)
+        rpad.SetTickx(1)
+        rpad.SetTicky(1)
 
     for p in (pad, rpad):
+        if p is None: continue
         p.SetFrameLineWidth(3)
         p.SetFrameLineColor(ROOT.kBlack)
 
@@ -90,7 +90,7 @@ def hist2d_style(h, xlabel, ylabel, zlabel):
     h.GetZaxis().SetTitleOffset(1.25)    
 
 def legend_style(legend):
-    legend.SetTextFont(41)
+    legend.SetTextFont(42)
     legend.SetFillStyle(0)
     legend.SetBorderSize(0)
     legend.SetTextSize(0.04)
@@ -140,3 +140,44 @@ def scale_axis_fonts(h, scale=1.0, ratio=False):
     x.SetLabelSize((17 if ratio else 0) * scale)
     y.SetTitleSize(22 * scale)
     y.SetLabelSize((17 if ratio else 18) * scale)
+
+
+def graph_style(
+    graph,
+    xlabel="X",
+    ylabel="Y",
+    hide_x=False
+):
+    """Style graph axes."""
+
+    graph.SetTitle("")
+
+    xaxis = graph.GetXaxis()
+    yaxis = graph.GetYaxis()
+
+    xaxis.SetTitle(xlabel)
+    yaxis.SetTitle(ylabel)
+
+    xaxis.CenterTitle()
+    yaxis.CenterTitle()
+
+    xaxis.SetTitleFont(43)
+    yaxis.SetTitleFont(43)
+
+    xaxis.SetTitleSize(20)
+    yaxis.SetTitleSize(18)
+
+    xaxis.SetLabelFont(43)
+    yaxis.SetLabelFont(43)
+
+    xaxis.SetLabelSize(0 if hide_x else 15)
+    yaxis.SetLabelSize(15)
+
+    xaxis.SetTitleOffset(1.2)
+    yaxis.SetTitleOffset(1.7)
+
+    xaxis.SetNdivisions(513)
+    yaxis.SetNdivisions(510)
+
+    if hide_x:
+        xaxis.SetTitle("")    

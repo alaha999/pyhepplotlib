@@ -49,6 +49,11 @@ echo
 echo "[INFO] Running 2D hist test..."
 python3 tests/test_2dhist.py
 
+#TEfficiency and Limit test
+echo
+echo "[INFO] Running TGraph test..."
+python3 tests/test_graph.py
+
 
 echo
 echo "============================================================"

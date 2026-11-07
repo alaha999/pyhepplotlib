@@ -2,7 +2,7 @@ import ROOT
 import math
 from array import array
 
-from .styles import atlas_labels, cms_labels, legend_style, pad_style, ratio_style, stack_style, hist2d_style, scale_axis_fonts
+from .styles import atlas_labels, cms_labels, legend_style, pad_style, ratio_style, stack_style, hist2d_style, scale_axis_fonts, graph_style
 from .utils import (
     clone_histogram,
     mc_uncertainty_band_ratio,
@@ -13,6 +13,12 @@ from .utils import (
     rebin_histogram_2d,
     full_integral_2d,
     axis_edges_2d,
+    hist_to_graph,
+    as_asymm_graph,
+    rebinned_hist,
+    efficiency_graph,
+    graph_ratio,
+    graph_bounds,
 )
 
 
@@ -35,6 +41,8 @@ class Plotter:
         self.ratioPad = None
         self.histogram = []
         self.histogram2d = None
+        self.graphs = []
+        self.g_multigraph = None
         self.xlabel = "X"
         self.ylabel = "Events"
         self.zlabel = "Events"        
@@ -44,6 +52,8 @@ class Plotter:
         self.ylabel_ratio = "obs/exp"
         self.yrange_ratio = (0, 2)
         self.extraTextCaption = []
+        self._graph_y_user_set = False
+        self._graph_ratio_y_user_set = False
 
         self._legend_pos = [0.70, 0.01, 0.99, 0.86]
         self._legend_fontsize = 0.03
@@ -81,18 +91,22 @@ class Plotter:
         if xrange:
             self.xrange = xrange
 
-    def set_yaxis(self, ylabel="Y-axis", yrange=(0.01, 1E8)):
+    def set_yaxis(self, ylabel="Y-axis", yrange=None):
         self.ylabel = ylabel
-        self.yrange = yrange
+        if yrange is not None:
+            self.yrange = yrange
+            self._graph_y_user_set = True
         
     def set_zaxis(self, zlabel="Events", zrange=None):
         self.zlabel = zlabel
         self.zrange = zrange
         
-    def set_yaxis_ratio(self, ylabel="obs/exp", yrange=(0, 2)):
+    def set_yaxis_ratio(self, ylabel="obs/exp", yrange=None):
         self.ylabel_ratio = ylabel
-        self.yrange_ratio = yrange
-
+        if yrange is not None:
+            self.yrange_ratio = yrange
+            self._graph_ratio_y_user_set = True
+        
     def set_extraTextCaption(self, textCaption):
         self.extraTextCaption.append(textCaption)
 
@@ -119,12 +133,17 @@ class Plotter:
         pad_style(self.mainPad, self.ratioPad, self.pubStyle)
 
         self.histogram = []
+        self.histogram2d = None
+        self.graphs = []
+        self.g_multigraph = None
         self.xlabel = "X"
         self.ylabel = "Events"
         self.xrange = None
         self.yrange = (0.01, 1E8)
+        self._graph_y_user_set = False
         self.ylabel_ratio = "obs/exp"
         self.yrange_ratio = (0, 2)
+        self._graph_ratio_y_user_set = False
         self.extraTextCaption = []
         self._legend_pos = [0.70, 0.01, 0.99, 0.86]
         self._legend_fontsize = 0.03
@@ -295,6 +314,36 @@ class Plotter:
         }
 
         return h
+
+    #TGraph
+    def graph(self, obj1, obj2=None,
+              color="ROOT.kBlue",
+              label="Graph",
+              lwidth=2,
+              lstyle="ROOT.kSolid",
+              markerstyle=20,
+              markersize=0.8,
+              fill=False,
+              fillalpha=1.0,
+              drawstyle=None):
+
+        if not (obj1.InheritsFrom("TH1") or obj1.InheritsFrom("TGraph")):
+            raise TypeError("graph() expects TH1 or TGraph")
+        if obj2 is not None and not (obj1.InheritsFrom("TH1") and obj2.InheritsFrom("TH1")):
+            raise TypeError("Two inputs must both be TH1 histograms")
+
+        def keep(obj):
+            return clone_histogram(obj) if obj.InheritsFrom("TH1") else obj.Clone(unique_name("input_graph"))
+
+        entry = {
+            "obj1": keep(obj1), "obj2": keep(obj2) if obj2 is not None else None,
+            "label": label, "color": root_value(color),
+            "lwidth": lwidth, "lstyle": root_value(lstyle),
+            "markerstyle": markerstyle, "markersize": markersize,
+            "fill": fill, "fillalpha": fillalpha, "drawstyle": drawstyle
+        }
+        self.graphs.append(entry)
+        return entry
     
     @staticmethod
     def _fold_flow_bins(h):
@@ -719,7 +768,164 @@ class Plotter:
         pad.Update()
 
         return self.canvas
-    
+
+    #DrawTGraph
+    def DrawGraph(self, mode="graph", drawstyle="errors", ratio=False, reference=0,
+                  rebin=1, error="normal", extraTextOffset=0.17, logY=False, logX=False, ratio_logY=False):
+
+        if mode not in ("graph", "efficiency"): raise ValueError(f"Unknown mode: {mode}")
+        if not self.graphs: raise RuntimeError("No graphs registered. Call graph() first.")
+        if self.canvas is None: raise RuntimeError("Call figure() before DrawGraph().")
+        if ratio and not 0 <= reference < len(self.graphs): raise ValueError("Invalid reference index")
+
+        options = {"points": "P", "errors": "PZ", "line": "L", "linepoints": "LP", "band": "3"}
+        work = []
+
+        # Prepare working graphs
+        for entry in self.graphs:
+            first, second = entry["obj1"], entry["obj2"]
+            style = entry["drawstyle"] or drawstyle
+            if style not in options: raise ValueError(f"Unknown drawstyle: {style}")
+
+            if mode == "efficiency":
+                if second is None: raise ValueError("Efficiency requires two TH1 histograms")
+                graph = efficiency_graph(rebinned_hist(first, rebin), rebinned_hist(second, rebin), error=error)
+            else:
+                if second is not None: raise ValueError("Graph mode accepts one input per graph")
+                if first.InheritsFrom("TH1"):
+                    graph = as_asymm_graph(rebinned_hist(first, rebin))
+                else:
+                    if rebin is not None and rebin != 1:
+                        raise ValueError("Cannot rebin an existing ROOT graph")
+                    graph = as_asymm_graph(first)
+
+            color = entry["color"]
+            graph.SetLineColor(color if style != "band" else ROOT.kBlack)
+            graph.SetLineWidth(entry["lwidth"] if style != "band" else 0)
+            graph.SetLineStyle(entry["lstyle"])
+            graph.SetMarkerColor(color)
+            graph.SetMarkerStyle(entry["markerstyle"])
+            graph.SetMarkerSize(entry["markersize"])
+            if style == "band" or entry["fill"]: graph.SetFillColorAlpha(color, entry["fillalpha"])
+            work.append((entry, graph, style))
+
+        # Reset canvas
+        self.canvas.cd()
+        self.canvas.Clear()
+        self._reset_draw_state()
+        self.g_multigraph = None
+        self.mainPad, self.ratioPad = None, None
+        self._draw_objects.extend(g for _, g, _ in work)
+
+        # Create pads
+        if ratio:
+            self.mainPad = ROOT.TPad(unique_name("graph_main"), "", 0, 0.30, 1, 1)
+            self.ratioPad = ROOT.TPad(unique_name("graph_ratio"), "", 0, 0, 1, 0.30)
+            ROOT.SetOwnership(self.mainPad, False)
+            ROOT.SetOwnership(self.ratioPad, False)
+
+            pad_style(self.mainPad, self.ratioPad, self.pubStyle)
+            self._draw_objects.extend([self.mainPad, self.ratioPad])
+
+            self.canvas.cd()
+            self.mainPad.Draw()
+            self.ratioPad.Draw()
+        else:
+            self.mainPad = self.canvas
+            self.ratioPad = None
+            pad_style(self.mainPad, pubstyle=self.pubStyle)
+            
+        # Main panel
+        main = self.mainPad
+        main.cd()
+        main.SetLogx(bool(logX))
+        main.SetLogy(bool(logY))
+
+        multi = ROOT.TMultiGraph(unique_name("graph_multigraph"), "")
+        self.g_multigraph = multi
+        self._draw_objects.append(multi)
+
+        for _, (_, graph, style) in sorted(enumerate(work), key=lambda item: (item[1][2] != "band", item[0])):
+            multi.Add(graph, options[style])
+
+        multi.Draw("A")
+        main.Update()
+        graph_style(multi, self.xlabel, self.ylabel, hide_x=ratio)
+
+        auto_x, auto_y = graph_bounds([g for _, g, _ in work], logY=logY, efficiency=(mode == "efficiency"))
+        xlim = self.xrange if self.xrange is not None else auto_x
+        ylim = self.yrange if self._graph_y_user_set else auto_y
+        if logX and xlim[0] <= 0: raise ValueError("logX requires positive X limits")
+        if logY and ylim[0] <= 0: raise ValueError("logY requires positive Y limits")
+
+        multi.GetXaxis().SetLimits(*xlim)
+        multi.SetMinimum(ylim[0])
+        multi.SetMaximum(ylim[1])
+
+        # Legend
+        self.mainleg = ROOT.TLegend(*self._legend_pos)
+        legend_style(self.mainleg)
+        self.mainleg.SetTextSize(self._legend_fontsize)
+        self.mainleg.SetNColumns(self._legend_col)
+        self._draw_objects.append(self.mainleg)
+
+        legend_options = {"points": "p", "errors": "ep", "line": "l", "linepoints": "lp", "band": "f"}
+        for entry, graph, style in work:
+            self.mainleg.AddEntry(graph, entry["label"], legend_options[style])
+        self.mainleg.Draw()
+
+        #Experiment label
+        self._draw_experiment_label(extraTextOffset=extraTextOffset, pad=main)
+        main.Modified()
+        main.Update()
+        main.RedrawAxis('f')
+        main.Update()
+        
+        # Ratio panel
+        if ratio:
+            ref_graph = work[reference][1]
+            ratios = [graph_ratio(g, ref_graph, reference=(i == reference))
+                      for i, (_, g, _) in enumerate(work)]
+            self._draw_objects.extend(ratios)
+
+            self.ratioPad.cd()
+            self.ratioPad.SetLogx(bool(logX))
+            self.ratioPad.SetLogy(bool(ratio_logY))
+            ratio_multi = ROOT.TMultiGraph(unique_name("ratio_multigraph"), "")
+            self._draw_objects.append(ratio_multi)
+
+            for (entry, _, style), rgraph in zip(work, ratios):
+                color = entry["color"]
+                rgraph.SetLineColor(color)
+                rgraph.SetLineWidth(entry["lwidth"])
+                rgraph.SetLineStyle(entry["lstyle"])
+                rgraph.SetMarkerColor(color)
+                rgraph.SetMarkerStyle(entry["markerstyle"])
+                rgraph.SetMarkerSize(entry["markersize"])
+                ratio_multi.Add(rgraph, options["line" if style == "band" else style])
+
+            ratio_multi.Draw("A")
+            self.ratioPad.Update()
+            graph_style(ratio_multi, self.xlabel, self.ylabel_ratio)
+
+            _, auto_ratio_y = graph_bounds(ratios, logY=ratio_logY, ratio=True)
+            ratio_ylim = self.yrange_ratio if self._graph_ratio_y_user_set else auto_ratio_y
+            if ratio_logY and ratio_ylim[0] <= 0: raise ValueError("ratio_logY requires positive Y limits")
+
+            ratio_multi.GetXaxis().SetLimits(*xlim)
+            ratio_multi.SetMinimum(ratio_ylim[0])
+            ratio_multi.SetMaximum(ratio_ylim[1])
+            self.ratioPad.Modified()
+            self.ratioPad.Update()
+            self.ratioPad.RedrawAxis("f")
+            self.ratioPad.Update()
+
+        self.canvas.cd()
+        self.canvas.Modified()
+        self.canvas.Update()
+        return self.canvas    
+
+    #Experiment Label    
     def _draw_experiment_label(self, extraTextOffset=0.18,pad=None):
         pad = pad or self.mainPad
         
