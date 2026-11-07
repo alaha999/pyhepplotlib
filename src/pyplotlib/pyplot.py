@@ -111,3 +111,8 @@ def close():
     global _plot
     if _plot is not None: _plot.close()
     _plot = None
+
+def options(method=None):
+    """Display available pyhepplotlib API options."""
+    from .help import options as show_options
+    return show_options(method)    
