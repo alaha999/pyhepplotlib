@@ -82,83 +82,70 @@ p.savefig("plot.pdf")
 *For more test plots checkout the `tests/README.md` gallery*
 ## Plot Gallery
 
-The following examples demonstrate the plotting functionality, from minimal histograms to full analysis-style figures.
+Examples of histograms, stacked distributions, efficiency measurements, and limit plots produced with `pyhepplotlib`.
 
 <table>
 <tr>
-<td width="50%" align="center">
-  <a href="tests/outputs/01_minimal.png">
-    <img src="tests/outputs/01_minimal.png" width="100%" alt="Minimal ROOT Histogram">
-  </a>
-  <br>
-  <b>01 — Minimal ROOT Histogram</b>
-  <br>
-  Basic histogram plotting using <code>plt.hist(h)</code>.
+<td width="33%" align="center">
+  <a href="tests/outputs/01_minimal.png"><img src="tests/outputs/01_minimal.png" width="100%"></a><br>
+  <b>Minimal Histogram</b><br>
+  <sub>Basic ROOT histogram plotting</sub>
 </td>
-<td width="50%" align="center">
-  <a href="tests/outputs/02_overlay.png">
-    <img src="tests/outputs/02_overlay.png" width="100%" alt="Histogram Overlay">
-  </a>
-  <br>
-  <b>02 — Histogram Overlay</b>
-  <br>
-  Multiple histograms, line styles, axis ranges, and logarithmic scales.
+<td width="33%" align="center">
+  <a href="tests/outputs/02_overlay.png"><img src="tests/outputs/02_overlay.png" width="100%"></a><br>
+  <b>Histogram Overlay</b><br>
+  <sub>Multiple distributions and custom styles</sub>
+</td>
+<td width="33%" align="center">
+  <a href="tests/outputs/normalized_overlay.png"><img src="tests/outputs/normalized_overlay.png" width="100%"></a><br>
+  <b>Normalized Overlay</b><br>
+  <sub>Shape comparisons with unit normalization</sub>
 </td>
 </tr>
 
 <tr>
-<td width="50%" align="center">
-  <a href="tests/outputs/03_stack_data_ratio.png">
-    <img src="tests/outputs/03_stack_data_ratio.png" width="100%" alt="Stack and Ratio">
-  </a>
-  <br>
-  <b>03 — Stack + Data/MC Ratio</b>
-  <br>
-  Stacked backgrounds, scaled signals, observed data, and MC uncertainty.
+<td align="center">
+  <a href="tests/outputs/03_stack_data_ratio.png"><img src="tests/outputs/03_stack_data_ratio.png" width="100%"></a><br>
+  <b>Stack + Data/MC</b><br>
+  <sub>Stacked backgrounds and ratio panel</sub>
 </td>
-<td width="50%" align="center">
-  <a href="tests/outputs/04_atlas_analysis.png">
-    <img src="tests/outputs/04_atlas_analysis.png" width="100%" alt="ATLAS Analysis">
-  </a>
-  <br>
-  <b>04 — ATLAS Analysis Style</b>
-  <br>
-  ATLAS labels, luminosity, custom legends, captions, and ratio ranges.
+<td align="center">
+  <a href="tests/outputs/04_atlas_analysis.png"><img src="tests/outputs/04_atlas_analysis.png" width="100%"></a><br>
+  <b>ATLAS Analysis</b><br>
+  <sub>Experiment labels and custom annotations</sub>
+</td>
+<td align="center">
+  <a href="tests/outputs/05_publication.png"><img src="tests/outputs/05_publication.png" width="100%"></a><br>
+  <b>Publication Style</b><br>
+  <sub>Clean publication-ready distributions</sub>
 </td>
 </tr>
 
 <tr>
-<td width="50%" align="center">
-  <a href="tests/outputs/05_publication.png">
-    <img src="tests/outputs/05_publication.png" width="100%" alt="Publication Style">
-  </a>
-  <br>
-  <b>05 — Publication Style</b>
-  <br>
-  Clean publication-style figures with statistical yields hidden.
+<td align="center">
+  <a href="tests/outputs/03_pietest_atlas.png"><img src="tests/outputs/03_pietest_atlas.png" width="100%"></a><br>
+  <b>Pie Chart</b><br>
+  <sub>Background composition</sub>
 </td>
-<td width="50%" align="center">
-  <a href="tests/outputs/03_pietest_atlas.pdf">
-    <img src="tests/outputs/03_pietest_atlas.png" width="100%" alt="ATLAS Pie Chart">
-  </a>
-  <br>
-  <b>07 — ATLAS Pie Chart</b>
-  <br>
-  Background composition visualized as a pie chart.
+<td align="center">
+  <a href="tests/outputs/02_graph_efficiency_ratio.png"><img src="tests/outputs/02_graph_efficiency_ratio.png" width="100%"></a><br>
+  <b>Efficiency + Ratio</b><br>
+  <sub>Weighted efficiencies and comparisons</sub>
 </td>
-</tr>
-<tr>
-<td width="50%" align="center">
-    <a href="tests/outputs/normalized_overlay.png">
-    <img src="tests/outputs/normalized_overlay.png" width="100%" alt="Overlay Style">
-  </a>
-  <br>
-  <b>05 — Overlay plots</b>
-  <br>
-  overlay plots
+<td align="center">
+  <a href="tests/outputs/04_graph_efficiency_variablebin.png"><img src="tests/outputs/04_graph_efficiency_variablebin.png" width="100%"></a><br>
+  <b>Variable-Bin Efficiency</b><br>
+  <sub>Asymmetric uncertainties and custom binning</sub>
 </td>
 </tr>
 
+<tr>
+<td align="center">
+  <a href="tests/outputs/06_graph_limit_band.png"><img src="tests/outputs/06_graph_limit_band.png" width="100%"></a><br>
+  <b>Exclusion Limits</b><br>
+  <sub>Expected and observed limits with ±1σ/±2σ bands</sub>
+</td>
+</tr>
 </table>
 
 ---
@@ -250,8 +237,8 @@ The `hist2d()` function accepts existing ROOT `TH2` histograms. Multiple histogr
 
 This is rough to-do list for me in my free time:
 - [x] 2D histogram     
-- [ ] TEfficiency plots     
-- [ ] TGraph for limit plots (Yeah, I am sad, I want to make p-value discovery plots. Should I include it first? xD)
+- [x] TEfficiency plots     
+- [x] TGraph for limit plots (Yeah, I am sad, I want to make p-value discovery plots. Should I include it first? xD)
 - [ ] yaml config based plotting wrapper for extensive analysis level collaboration and plotting     
 - [x] github CI/CD pipeline
 - [x] Pie chart
