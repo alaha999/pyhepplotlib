@@ -151,7 +151,94 @@ def case_06_rebin_overflow():
 
     save("06_rebin_overflow.png")
 
+def case_07_underflow_overflow():
+    h = ROOT.TH1F("h_test", "", 5, 0, 500)
 
+    for i, value in enumerate([10, 20, 30, 40, 50, 60, 70]):
+        h.SetBinContent(i, value)
+
+    print("\nUnderflow overflow test")
+    print("=============================")
+
+    # Original histogram information
+    print("\nOriginal histogram:")
+    print(f"{'Bin':<12} {'Range [GeV]':<20} {'Width [GeV]':<15} {'Content':<10}")
+    print("-" * 60)
+
+    axis = h.GetXaxis()
+    nbins = h.GetNbinsX()
+
+    for i in range(nbins + 2):
+        if i == 0:
+            label = "Underflow"
+            bin_range = f"< {axis.GetBinLowEdge(1):g}"
+            width = "-"
+        elif i == nbins + 1:
+            label = "Overflow"
+            bin_range = f">= {axis.GetBinUpEdge(nbins):g}"
+            width = "-"
+        else:
+            label = f"Bin {i}"
+            low = axis.GetBinLowEdge(i)
+            high = axis.GetBinUpEdge(i)
+            bin_range = f"{low:g} - {high:g}"
+            width = f"{axis.GetBinWidth(i):g}"
+
+        print(
+            f"{label:<12} {bin_range:<20} "
+            f"{width:<15} {h.GetBinContent(i):<10.1f}"
+        )
+
+    original = h.Integral(0, nbins + 1)
+    print(f"\nOriginal total yield: {original:.1f}")
+
+    # Test underflow/overflow configurations
+    xmin, xmax = 100, 400
+
+    first_bin = max(1, axis.FindBin(xmin))
+    last_bin = min(nbins, axis.FindBin(xmax - 1e-9))
+
+    print(f"\nVisible range: {xmin}–{xmax} GeV")
+    print(
+        f"{'Underflow':<12} {'Overflow':<12} "
+        f"{'Original':<12} {'Expected':<12} "
+        f"{'Actual':<12} {'Result'}"
+    )
+    print("-" * 75)
+
+    for under, over in [
+        (True, True),
+        (True, False),
+        (False, True),
+        (False, False),
+    ]:
+        # Expected yield based on selected settings
+        start = 0 if under else first_bin
+        end = nbins + 1 if over else last_bin
+        expected = h.Integral(start, end)
+
+        plt.figure()
+        plt.hist(h, label="Test", color=ROOT.kBlue)
+        plt.xaxis("Observable [GeV]", (xmin, xmax))
+
+        plt.draw(
+            logY=False,
+            include_underflow=under,
+            include_overflow=over,
+        )
+
+        actual = plt.current()._last_draw_summary["signals"][0][1]
+
+        result = "OK!" if abs(actual - expected) < 1e-6 else "FAIL!"
+
+        print(
+            f"{str(under):<12} {str(over):<12} "
+            f"{original:<12.1f} {expected:<12.1f} "
+            f"{actual:<12.1f} {result}"
+        )
+
+        plt.close()
+        
 if __name__ == "__main__":
     case_01_minimal()
     case_02_overlay()
@@ -159,4 +246,5 @@ if __name__ == "__main__":
     case_04_atlas_analysis()
     case_05_publication()
     case_06_rebin_overflow()
+    case_07_underflow_overflow()
     print(f"\ntest plots written to: {OUT}")

@@ -355,13 +355,25 @@ class Plotter:
             h.SetBinContent(flow, 0.)
             h.SetBinError(flow, 0.)
 
-    def _working_histograms(self, truncate_xrange, rebin):
+    def _working_histograms(
+            self,
+            truncate_xrange,
+            rebin,
+            include_underflow=True,
+            include_overflow=True,
+    ):
         # All transformations operate on private clones (safe for repeated draws).
         work = []
         for label, stack, is_data, source, legend_style_name in self.histogram:
             expected = self._full_yield(source)
             h = clone_histogram(source)
-            merge_underflow_overflow_in_range(h, self.xrange[0], self.xrange[1])
+            merge_underflow_overflow_in_range(
+                h,
+                self.xrange[0],
+                self.xrange[1],
+                include_underflow=include_underflow,
+                include_overflow=include_overflow,
+            )
 
             if truncate_xrange:
                 axis = h.GetXaxis()
@@ -388,11 +400,12 @@ class Plotter:
             self._fold_flow_bins(h)
             actual = self._full_yield(h)
             tolerance = 1e-9 * max(1., sum(abs(source.GetBinContent(i)) for i in range(source.GetNbinsX() + 2)))
-            if not math.isfinite(actual) or not math.isfinite(expected) or abs(actual - expected) > tolerance:
-                raise RuntimeError(
-                    f"Histogram '{label}' yield changed during plotting: "
-                    f"{expected:.12g} -> {actual:.12g}"
-                )
+            if include_underflow and include_overflow:
+                if not math.isfinite(actual) or not math.isfinite(expected) or abs(actual - expected) > tolerance:
+                    raise RuntimeError(
+                        f"Histogram '{label}' yield changed during plotting: "
+                        f"{expected:.12g} -> {actual:.12g}"
+                    )
             work.append([label, stack, is_data, h, legend_style_name])
         return work
 
@@ -453,6 +466,9 @@ class Plotter:
         drawOption="HIST",
         sortLegend=True,
         showStat=False,
+        include_underflow=True,
+        include_overflow=True,
+
     ):
         if not self.histogram:
             raise RuntimeError("No histograms added. Call hist() first.")
@@ -471,9 +487,10 @@ class Plotter:
 
         # Source yields are invariant under display ranges and rebinning.
         source_yields = [self._full_yield(item[3]) for item in self.histogram]
-        work = self._working_histograms(truncate_xrange, rebin)
+        work = self._working_histograms(truncate_xrange, rebin,include_underflow,include_overflow)
         work_index = {id(item): i for i, item in enumerate(work)}
-        yield_by_hist = {id(item[3]): y for item, y in zip(work, source_yields)}
+        yield_by_hist = {id(item[3]): self._full_yield(item[3]) for item in work}
+        #yield_by_hist = {id(item[3]): y for item, y in zip(work, source_yields)}
         def display_yield(item):
             return yield_by_hist[id(item[3])]
         self._draw_objects.extend(item[3] for item in work)
@@ -506,7 +523,7 @@ class Plotter:
         #summary text to build the table        
         # Keep the table consistent with the legend (including flow bins).
         def source_summary(item):
-            source = self.histogram[work_index[id(item)]][3]
+            source = item[3] 
             return (display_yield(item), sum(source.GetBinError(i)**2 for i in range(source.GetNbinsX() + 2))**0.5)
 
         def combine_summary(items):
